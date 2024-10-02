@@ -1,0 +1,1 @@
+This project is for encoding binary data in to colored picture file using Rust.
