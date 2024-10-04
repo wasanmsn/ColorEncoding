@@ -1,6 +1,6 @@
 use std::path::Path;
 use std::fs;
-use image::{ImageBuffer ,RgbaImage,Rgba};
+use image::{ImageBuffer ,RgbaImage,Rgba,ImageReader};
 
 struct RgbaData {
     r: u8,
@@ -12,6 +12,45 @@ struct RgbaData {
 fn main() {
 
     let file_path = "next.txt";    
+    encode(file_path);
+    let image_path = "next.png";
+    decode(image_path);
+    
+}
+
+fn decode(image_path:&str) {
+    let img = ImageReader::open(image_path)
+    .expect("Failed to open image")
+    .decode()
+    .expect("Failed to decode image");
+
+    let rgba_image = img.to_rgba8();
+
+    let mut binary_string:Vec<String> = Vec::new();
+
+    for pixel in rgba_image.pixels() {
+        let [r, g, b, a] = pixel.0;
+
+        // check for padding pixels
+        if r == 0 && g == 0 && b == 0 && a == 255 {
+            continue;
+        }
+        let binary = rgba_to_binary(r, g, b, a);
+        binary_string.push(binary);
+    }
+
+    let mut bytes:Vec<u8> = Vec::new();
+
+    for binary in binary_string {
+        let byte = binary_to_u8(&binary);
+        bytes.push(byte);
+    }
+
+    let text = byte_to_character(bytes);
+    println!("{text}");
+}
+
+fn encode(file_path:&str) {
     println!("In file, {file_path}");
 
     let contents = fs::read_to_string(file_path).expect("Should have been able to read the file.");
@@ -67,8 +106,30 @@ fn byte_to_rgba(byte: u8) -> RgbaData {
     RgbaData { r, g, b, a }
 }
 
+fn byte_to_character(bytes: Vec<u8>) -> String {
+    String::from_utf8(bytes).expect("Invalid UTF-8 sequence")
+}
+
 fn binary_to_u8(binary_str: &str) -> u8 {
     u8::from_str_radix(binary_str, 2).unwrap()
+}
+
+fn u8_to_binary(bits:u8) -> String {
+    format!("{:02b}",bits)
+}
+
+fn rgba_to_binary(r:u8,g:u8,b:u8,a:u8) -> String {
+    //rr000000 represent r position in byte
+    let r_bits = u8_to_binary(r/85);
+    //rrGG0000 represent G position in byte
+    let g_bits = u8_to_binary(g/85);
+    //rrGGbb00 represent b position in byte
+    let b_bits = u8_to_binary(b/85);
+    //rrGGbbAA represent A position in byte
+    let a_bits = u8_to_binary(a/85);
+
+    format!("{r_bits}{g_bits}{b_bits}{a_bits}")
+
 }
 
 fn get_file_stem(file_path: &str) -> String {
