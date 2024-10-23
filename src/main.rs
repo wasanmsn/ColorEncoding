@@ -2,20 +2,12 @@ use std::path::Path;
 use std::fs;
 use image::{ImageBuffer ,RgbaImage,Rgba,ImageReader};
 
-struct RgbaData {
-    r: u8,
-    g: u8,
-    b: u8,
-    a: u8,
-}
-
+const BYTES_PER_PIXEL: u8 = 4;
 fn main() {
-
     let file_path = "next.txt";    
     encode(file_path);
     let image_path = "next.png";
     decode(image_path);
-    
 }
 
 fn decode(image_path:&str) {
@@ -26,7 +18,7 @@ fn decode(image_path:&str) {
 
     let rgba_image = img.to_rgba8();
 
-    let mut binary_string:Vec<String> = Vec::new();
+    let mut bytes:Vec<u8> = Vec::new();
 
     for pixel in rgba_image.pixels() {
         let [r, g, b, a] = pixel.0;
@@ -35,38 +27,29 @@ fn decode(image_path:&str) {
         if r == 0 && g == 0 && b == 0 && a == 255 {
             continue;
         }
-        let binary = rgba_to_binary(r, g, b, a);
-        binary_string.push(binary);
-    }
+        bytes.push(r);
+        bytes.push(g);
+        bytes.push(b);
+        bytes.push(a);
 
-    let mut bytes:Vec<u8> = Vec::new();
-
-    for binary in binary_string {
-        let byte = binary_to_u8(&binary);
-        bytes.push(byte);
     }
 
     let text = byte_to_character(bytes);
     println!("{text}");
 }
 
-fn encode(file_path:&str) {
+fn encode(file_path: &str){
     println!("In file, {file_path}");
 
     let contents = fs::read_to_string(file_path).expect("Should have been able to read the file.");
     let contents_into_bytes = contents.into_bytes();
 
-    let rgba_data_list: Vec<RgbaData> = contents_into_bytes
-    .iter()
-    .map(|&byte| byte_to_rgba(byte))
-    .collect();
-
-    let content_size = rgba_data_list.len();
+    let content_size = contents_into_bytes.len();
     println!("Content size {content_size}");
     
     // image resolution
     let width = 256;
-    let height = (content_size as f64 / width as f64).ceil() as u32;
+    let height = ((content_size as f64 )/ (width as f64 * BYTES_PER_PIXEL as f64)).ceil() as u32;
 
     // Create ImageBuffer
     let mut img: RgbaImage = ImageBuffer::new(width, height);
@@ -75,9 +58,12 @@ fn encode(file_path:&str) {
     let mut pixel_index = 0;
     for pixel in img.pixels_mut() {
         if pixel_index < content_size {
-            let rgba_data = &rgba_data_list[pixel_index];
-            *pixel = Rgba([rgba_data.r,rgba_data.g,rgba_data.b,rgba_data.a]);
-            pixel_index += 1;
+            // 1 pixel in image eqauls 4 characters
+            let rgba_data: Vec<u8> = contents_into_bytes.get(pixel_index..pixel_index + 4)
+            .unwrap_or(&[0,0,0,255])
+            .to_vec();
+            *pixel = Rgba([rgba_data[0],rgba_data[1],rgba_data[2],rgba_data[3]]);
+            pixel_index += 4;
         }
         else {
             // Fill remaining pixels with black;
@@ -90,46 +76,8 @@ fn encode(file_path:&str) {
     println!("Image saved as: {}", output_filename);
 }
 
-fn byte_to_rgba(byte: u8) -> RgbaData {
-    let binary_str = format!("{:08b}",byte);
-
-    let r_bits = &binary_str[0..2];
-    let g_bits = &binary_str[2..4];
-    let b_bits = &binary_str[4..6];
-    let a_bits = &binary_str[6..8];
-
-    let r = binary_to_u8(r_bits) * 85;
-    let g = binary_to_u8(g_bits) * 85;
-    let b = binary_to_u8(b_bits) * 85;
-    let a = binary_to_u8(a_bits) * 85;
-
-    RgbaData { r, g, b, a }
-}
-
 fn byte_to_character(bytes: Vec<u8>) -> String {
     String::from_utf8(bytes).expect("Invalid UTF-8 sequence")
-}
-
-fn binary_to_u8(binary_str: &str) -> u8 {
-    u8::from_str_radix(binary_str, 2).unwrap()
-}
-
-fn u8_to_binary(bits:u8) -> String {
-    format!("{:02b}",bits)
-}
-
-fn rgba_to_binary(r:u8,g:u8,b:u8,a:u8) -> String {
-    //rr000000 represent r position in byte
-    let r_bits = u8_to_binary(r/85);
-    //rrGG0000 represent G position in byte
-    let g_bits = u8_to_binary(g/85);
-    //rrGGbb00 represent b position in byte
-    let b_bits = u8_to_binary(b/85);
-    //rrGGbbAA represent A position in byte
-    let a_bits = u8_to_binary(a/85);
-
-    format!("{r_bits}{g_bits}{b_bits}{a_bits}")
-
 }
 
 fn get_file_stem(file_path: &str) -> String {
